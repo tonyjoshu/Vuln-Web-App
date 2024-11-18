@@ -1,23 +1,54 @@
-name: Example workflow for PHP using Snyk
-on: 
+name: Security Scans
+
+on:
   push:
     branches:
       - master
   pull_request:
-  
+
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
-  security:
+  codeql:
+    name: CodeQL Analysis (JavaScript & PHP)
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@master
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: 'javascript,php'
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  snyk:
+    name: Snyk Dependency and Vulnerability Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
       - name: Run Snyk to check for vulnerabilities
-        uses: snyk/actions/php@master
-        continue-on-error: true # To make sure that SARIF upload gets called
+        uses: snyk/actions@v3
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          args: --sarif-file-output=snyk.sarif
-      - name: Upload result to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v2
+          args: test --all-projects --sarif-file-output=snyk.sarif
+
+      - name: Verify SARIF File
+        run: |
+          if [ ! -f "snyk.sarif" ]; then
+            echo "SARIF file not found!" && exit 1
+          fi
+
+      - name: Upload SARIF File to GitHub
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: snyk.sarif
